@@ -28,8 +28,9 @@
 // and your PUBLIC Publishable/anon key.
 // NEVER put a service_role/secret key here.
 // ============================================================
-const SUPABASE_URL='PASTE_YOUR_SUPABASE_PROJECT_URL_HERE';
-const SUPABASE_ANON_KEY='PASTE_YOUR_SUPABASE_PUBLISHABLE_OR_ANON_KEY_HERE';
+const SUPABASE_URL='https://obtgztsmqxfinytbownq.supabase.co/rest/v1/
+';
+const SUPABASE_ANON_KEY='sb_publishable_BmA9w5ipnTstU3_LLP4euw_m5PhTzwl';
 const SUPABASE_READY=SUPABASE_URL.startsWith('https://')&&!SUPABASE_URL.includes('PASTE_YOUR_')&&!SUPABASE_ANON_KEY.includes('PASTE_YOUR_');
 const sb=SUPABASE_READY?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}):null;
 function requireCloud(){if(!sb){toast('First add your Supabase URL and public key near the top of the script.');return false}return true}
