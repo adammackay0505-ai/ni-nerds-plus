@@ -77,9 +77,66 @@ async function removeFriend(id){if(!requireCloud())return;if(!confirm('Remove th
 function renderRequests(){const list=incoming();$('requestList').innerHTML=list.length?list.map(r=>{const p=profiles.find(x=>x.id===r.sender_id);return `<div class="card" style="padding:15px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px"><div class="memberhead"><img class="avatar" src="${esc(av(p?.avatar_url))}"><div><b>${esc(p?.display_name||'Unknown')}</b><div class="muted">@${esc(p?.username||'')} wants to be your friend.</div></div></div><div class="actions"><button class="btn" onclick="accept('${r.id}')">Accept</button> <button class="btn red" onclick="decline('${r.id}')">Decline</button></div></div>`}).join(''):'<div class="empty">No pending requests.</div>'}
 function renderProfile(){const p=profile;$('profileView').innerHTML=`<div class="profilegrid"><div class="card profilebox"><img class="avatar lg" src="${esc(av(p.avatar_url))}"><h1>${esc(p.display_name)}</h1><div class="muted">@${esc(p.username)}</div><p>● ${esc(p.status||'Online')}</p><button class="btn" onclick="openModal()">Edit profile</button></div><div class="card" style="padding:24px"><h2 style="font-family:Orbitron">About me</h2><p>${esc(p.bio||'Tell the community about yourself.')}</p><h3>Location</h3><p class="muted">${esc(p.location||'Not set')}</p><h3>Interests</h3><p>${(p.interests||'').split(',').filter(Boolean).map(x=>`<span class="tag">${esc(x.trim())}</span>`).join(' ')||'None yet.'}</p></div></div>`}
 function openModal(){const p=profile;$('pUser').value=p.username||'';$('pName').value=p.display_name||'';$('pLocation').value=p.location||'';$('pStatus').value=p.status||'Online';$('pBio').value=p.bio||'';$('pInterests').value=p.interests||'';$('preview').src=av(p.avatar_url);$('modal').classList.add('open')}
-function closeModal(){$('modal').classList.remove('open')}
-$('avatarFile').addEventListener('change',e=>{const f=e.target.files[0];if(f&&f.size>6*1024*1024){e.target.value='';return toast('Avatar must be under 6MB.')}if(f)$('preview').src=URL.createObjectURL(f)})
-async function saveProfile(){if(!requireCloud())return;const username=$('pUser').value.trim().toLowerCase(),name=$('pName').value.trim();if(!/^[a-z0-9_]{3,30}$/.test(username))return toast('Username must be 3-30 letters, numbers or underscores.');if(!name)return toast('Please enter your name.');const btn=$('saveProfileBtn');btn.disabled=true;btn.textContent='Saving…';try{let avatarUrl=profile.avatar_url||null;const file=$('avatarFile').files[0];if(file){if(!['image/jpeg','image/png','image/webp'].includes(file.type))return toast('Please choose a JPG, PNG or WebP image.');if(file.size>6*1024*1024)return toast('Profile picture must be under 6MB.');const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';const path=`${me.id}/profile-${Date.now()}.${ext}`;const up=await sb.storage.from('avatars').upload(path,file,{contentType:file.type,cacheControl:'3600',upsert:false});if(up.error){console.error('Avatar upload:',up.error);return toast('Could not upload profile picture. Check the avatars bucket/policies in Supabase.')}avatarUrl=sb.storage.from('avatars').getPublicUrl(path).data.publicUrl}$('pName').value=name;$('pBio').value=$('pBio').value.trim();const {error}=await sb.from('profiles').update({username,display_name:name,location:$('pLocation').value.trim(),status:$('pStatus').value.trim()||'Online',bio:$('pBio').value.trim(),interests:$('pInterests').value.trim(),avatar_url:avatarUrl}).eq('id',me.id);if(error){console.error('Profile update:',error);return toast(error.message)}profile={...profile,username,display_name:name,location:$('pLocation').value.trim(),status:$('pStatus').value.trim()||'Online',bio:$('pBio').value.trim(),interests:$('pInterests').value.trim(),avatar_url:avatarUrl};closeModal();await load();toast('Profile saved successfully.')}finally{btn.disabled=false;btn.textContent='Save changes'}}
+function closeModal(){$('modal').classList.remove('open');$('avatarFile').value='';if(profile)$('preview').src=av(profile.avatar_url)}
+let avatarPreviewUrl=null;
+$('avatarFile').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;if(!['image/jpeg','image/png','image/webp'].includes(f.type)){e.target.value='';return toast('Please choose a JPG, PNG or WebP image.')}if(f.size>6*1024*1024){e.target.value='';return toast('Avatar must be under 6MB.')}if(avatarPreviewUrl)URL.revokeObjectURL(avatarPreviewUrl);avatarPreviewUrl=URL.createObjectURL(f);$('preview').src=avatarPreviewUrl})
+async function saveProfile(){
+  if(!requireCloud()||!me||!profile)return;
+  const username=$('pUser').value.trim().toLowerCase();
+  const name=$('pName').value.trim();
+  const location=$('pLocation').value.trim();
+  const status=$('pStatus').value.trim()||'Online';
+  const bio=$('pBio').value.trim();
+  const interests=$('pInterests').value.trim();
+  const btn=$('saveProfileBtn');
+
+  if(!/^[a-z0-9_]{3,30}$/.test(username))return toast('Username must be 3-30 letters, numbers or underscores.');
+  if(!name)return toast('Please enter your name.');
+  if(name.length>50)return toast('Your name must be 50 characters or fewer.');
+  if(bio.length>1000)return toast('Your bio must be 1000 characters or fewer.');
+  if(location.length>80)return toast('Location must be 80 characters or fewer.');
+  if(interests.length>300)return toast('Interests must be 300 characters or fewer.');
+
+  btn.disabled=true;btn.textContent='Saving…';
+  try{
+    // Only check username availability when the username has actually changed.
+    if(username!==String(profile.username||'').toLowerCase()){
+      const check=await sb.from('profiles').select('id').eq('username',username).maybeSingle();
+      if(check.error){console.error('Username check:',check.error);toast('Could not check username. Please try again.');return;}
+      if(check.data&&check.data.id!==me.id){toast('That username is already taken.');return;}
+    }
+
+    let avatarUrl=profile.avatar_url||null;
+    const file=$('avatarFile').files[0];
+    if(file){
+      if(!['image/jpeg','image/png','image/webp'].includes(file.type)){toast('Please choose a JPG, PNG or WebP image.');return;}
+      if(file.size>6*1024*1024){toast('Profile picture must be under 6MB.');return;}
+      const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+      const path=`${me.id}/profile-${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+      const up=await sb.storage.from('avatars').upload(path,file,{contentType:file.type,cacheControl:'3600',upsert:false});
+      if(up.error){console.error('Avatar upload:',up.error);toast(`Could not upload profile picture: ${up.error.message}`);return;}
+      const pub=sb.storage.from('avatars').getPublicUrl(path);
+      avatarUrl=pub.data?.publicUrl||avatarUrl;
+    }
+
+    const changes={username,display_name:name,location,status,bio,interests,avatar_url:avatarUrl};
+    const result=await sb.from('profiles').update(changes).eq('id',me.id).select('*').single();
+    if(result.error){console.error('Profile update:',result.error);toast(`Could not save profile: ${result.error.message}`);return;}
+
+    profile=result.data;
+    profiles=profiles.map(p=>p.id===me.id?profile:p);
+    $('avatarFile').value='';
+    closeModal();
+    renderAll();
+    toast('Profile saved successfully.');
+  }catch(err){
+    console.error('Profile save:',err);
+    toast('Something went wrong while saving your profile.');
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Save changes';
+  }
+}
 function renderConversations(){const ids=friendIds();$('convoList').innerHTML=ids.length?ids.map(id=>{const p=profiles.find(x=>x.id===id);return `<button class="convo ${selectedFriend===id?'active':''}" onclick="openChat('${id}')"><div class="memberhead"><img class="avatar" src="${esc(av(p?.avatar_url))}"><div><b>${esc(p?.display_name||'Friend')}</b><div class="muted">@${esc(p?.username||'')}</div></div></div></button>`}).join(''):'<div class="empty">Add friends to start messaging.</div>'}
 async function openChat(id){if(!isFriend(id))return toast('You can only message friends.');selectedFriend=id;page('messages');renderConversations();const p=profiles.find(x=>x.id===id);$('chatHead').innerHTML=`<b>${esc(p.display_name)}</b><div class="muted">@${esc(p.username)}</div>`;$('messageText').disabled=false;$('sendBtn').disabled=false;await loadMessages()}
 async function loadMessages(){if(!requireCloud())return;if(!selectedFriend)return;const {data,error}=await sb.from('messages').select('*').or(`and(sender_id.eq.${me.id},receiver_id.eq.${selectedFriend}),and(sender_id.eq.${selectedFriend},receiver_id.eq.${me.id})`).order('created_at');if(error)return toast(error.message);$('chatBody').innerHTML=(data||[]).map(m=>`<div class="bubble ${m.sender_id===me.id?'mine':''}">${esc(m.content)}<div class="muted" style="font-size:11px;margin-top:4px">${new Date(m.created_at).toLocaleString()}</div></div>`).join('')||'<div class="empty">No messages yet. Say hello!</div>';$('chatBody').scrollTop=$('chatBody').scrollHeight}
