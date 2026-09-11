@@ -163,6 +163,35 @@ function showMessageNotification(senderId,message){
     }catch(err){console.warn('Browser notification failed:',err)}
   }
 }
+function showGroupMessageNotification(groupId,message,senderId){
+  if(senderId===me?.id)return;
+  playMessagePing();
+  const sender=profiles.find(x=>x.id===senderId);
+  const name=sender?.display_name||'Someone';
+  const group=groupChats.find(x=>x.id===groupId);
+  const title='NI Nerds+ — '+(group?.name||'Group chat');
+  if('Notification' in window&&Notification.permission==='granted'){
+    try{
+      const n=new Notification(title,{body:name+': '+String(message||'New message').slice(0,120),icon:av(sender?.avatar_url),tag:'ni-nerds-group-'+groupId,renotify:true});
+      n.onclick=()=>{window.focus();openGroupChat(groupId);n.close()};
+    }catch(err){console.warn('Group notification failed:',err)}
+  }
+}
+function showFriendPostNotification(post){
+  if(!post||post.user_id===me?.id)return;
+  const friendSet=new Set(friendIds());
+  if(!friendSet.has(post.user_id))return;
+  playMessagePing();
+  const author=profiles.find(x=>x.id===post.user_id);
+  const name=author?.display_name||'A friend';
+  const preview=post.content?String(post.content).slice(0,120):(post.media_url?'Shared a photo':'Made a new post');
+  if('Notification' in window&&Notification.permission==='granted'){
+    try{
+      const n=new Notification('NI Nerds+ — '+name+' posted',{body:preview,icon:av(author?.avatar_url),tag:'ni-nerds-post-'+post.id,renotify:true});
+      n.onclick=()=>{window.focus();page('feed');n.close()};
+    }catch(err){console.warn('Post notification failed:',err)}
+  }
+}
 function clearMessageNotifications(){unreadMessages=0;const b=$('msgBadge');b.textContent='0';b.classList.add('hidden');const mb=$('mobileMsgBadge');if(mb){mb.textContent='0';mb.classList.add('hidden')}}
 function resetNotificationState(){unreadMessages=0;lastMessageId=null;updateNotificationButton();const b=$('msgBadge');if(b){b.textContent='0';b.classList.add('hidden')}const mb=$('mobileMsgBadge');if(mb){mb.textContent='0';mb.classList.add('hidden')}}
 async function boot(user){if(!requireCloud())return;me=user;resetNotificationState();await ensureProfile(user);await syncDiscordProfile(user);$('auth').classList.add('hidden');$('app').classList.remove('hidden');await load();subscribe()}
@@ -414,10 +443,16 @@ function subscribe(){
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'group_messages'},p=>{
       const m=p.new||{};
       if(selectedGroup&&m.group_id===selectedGroup)loadGroupMessages();
+      if(m.sender_id!==me?.id&&(document.hidden||selectedGroup!==m.group_id))showGroupMessageNotification(m.group_id,m.content,m.sender_id);
       scheduleLiveReload('group message');
     })
     .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>scheduleLiveReload('profile'))
-    .on('postgres_changes',{event:'*',schema:'public',table:'posts'},()=>scheduleLiveReload('post'))
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},p=>{
+      showFriendPostNotification(p.new||{});
+      scheduleLiveReload('post');
+    })
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'posts'},()=>scheduleLiveReload('post'))
+    .on('postgres_changes',{event:'DELETE',schema:'public',table:'posts'},()=>scheduleLiveReload('post'))
     .on('postgres_changes',{event:'*',schema:'public',table:'comments'},()=>scheduleLiveReload('comment'))
     .on('postgres_changes',{event:'*',schema:'public',table:'post_likes'},()=>scheduleLiveReload('like'))
     .on('postgres_changes',{event:'*',schema:'public',table:'friend_requests'},()=>scheduleLiveReload('friend request'))
