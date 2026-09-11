@@ -1,6 +1,14 @@
 <!doctype html>
 <html lang="en">
 <head>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#08101d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NI Nerds+">
+<link rel="apple-touch-icon" href="./icon-192.png">
+
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>NI Nerds+ | Community</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -558,4 +566,13 @@ function subscribe(){
 }
 
 (async()=>{if(!sb){$('configNote').innerHTML='Open <b>index.html</b>, find <b>SUPABASE_URL</b> and <b>SUPABASE_ANON_KEY</b>, paste your public Supabase details, save, then upload the file again.';return}const {data,error}=await sb.auth.getSession();if(error){console.error(error);toast(error.message);return}if(data.session)boot(data.session.user)})();
-</script></body></html>
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(err => console.warn("PWA service worker:", err));
+  });
+}
+</script>
+
+</body></html>
