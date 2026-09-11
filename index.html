@@ -105,7 +105,7 @@ async function requestNotifications(){
 }
 function showMessageNotification(senderId,message){
   unreadMessages++;
-  const badge=$('msgBadge');badge.textContent=unreadMessages;badge.classList.remove('hidden');
+  const badge=$('msgBadge');badge.textContent=unreadMessages;badge.classList.remove('hidden');const mb=$('mobileMsgBadge');if(mb){mb.textContent=unreadMessages;mb.classList.remove('hidden')}
   playMessagePing();
   const sender=profiles.find(x=>x.id===senderId);
   const name=sender?.display_name||'New message';
@@ -116,8 +116,8 @@ function showMessageNotification(senderId,message){
     }catch(err){console.warn('Browser notification failed:',err)}
   }
 }
-function clearMessageNotifications(){unreadMessages=0;const b=$('msgBadge');b.textContent='0';b.classList.add('hidden')}
-function resetNotificationState(){unreadMessages=0;lastMessageId=null;updateNotificationButton();const b=$('msgBadge');if(b){b.textContent='0';b.classList.add('hidden')}}
+function clearMessageNotifications(){unreadMessages=0;const b=$('msgBadge');b.textContent='0';b.classList.add('hidden');const mb=$('mobileMsgBadge');if(mb){mb.textContent='0';mb.classList.add('hidden')}}
+function resetNotificationState(){unreadMessages=0;lastMessageId=null;updateNotificationButton();const b=$('msgBadge');if(b){b.textContent='0';b.classList.add('hidden')}const mb=$('mobileMsgBadge');if(mb){mb.textContent='0';mb.classList.add('hidden')}}
 async function boot(user){if(!requireCloud())return;me=user;resetNotificationState();await ensureProfile(user);await syncDiscordProfile(user);$('auth').classList.add('hidden');$('app').classList.remove('hidden');await load();subscribe()}
 async function logout(){if(!requireCloud())return;await sb.auth.signOut();me=null;profile=null;location.reload()}
 async function load(){
@@ -148,7 +148,7 @@ async function load(){
 }
 function friendIds(){return friendships.filter(x=>x.user_id===me.id).map(x=>x.friend_id)}function isFriend(id){return friendIds().includes(id)}function incoming(){return requests.filter(r=>r.receiver_id===me.id&&r.status==='pending')}function outgoing(){return requests.filter(r=>r.sender_id===me.id&&r.status==='pending')}
 function renderAll(){ $('topName').textContent=profile.display_name;$('topAvatar').src=av(profile.avatar_url);$('homeAvatar').src=av(profile.avatar_url);$('feedAvatar').src=av(profile.avatar_url);$('sMembers').textContent=profiles.length;$('sPosts').textContent=posts.length;$('sFriends').textContent=friendIds().length;$('sRequests').textContent=incoming().length;$('reqBadge').textContent=incoming().length;$('reqBadge').classList.toggle('hidden',!incoming().length);renderPosts('homePosts',6);renderPosts('feedPosts',100);renderMembers();renderFriends();renderRequests();renderProfile();renderConversations()}
-async function page(name,btn){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const target=$(name);if(!target)return;target.classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');$('side').classList.remove('open');if(name==='messages'){clearMessageNotifications();renderConversations();return}if(name==='profile'){await openMyProfile()}}
+async function page(name,btn){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));const target=$(name);if(!target)return;target.classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');document.querySelectorAll('.mobile-nav button').forEach(x=>x.classList.remove('active'));const mobileBtn=[...document.querySelectorAll('.mobile-nav button')].find(x=>x.getAttribute('onclick')?.includes("page('"+name+"'"));if(mobileBtn)mobileBtn.classList.add('active');$('side').classList.remove('open');if(name==='messages'){clearMessageNotifications();renderConversations();return}if(name==='profile'){await openMyProfile()}}
 async function openMyProfile(){
   if(!requireCloud()||!me)return;
   const view=$('profileView');
